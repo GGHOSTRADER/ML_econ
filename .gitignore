@@ -1,0 +1,45 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.env
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- OS / Editor ----
+.DS_Store
+Thumbs.db
+.vscode/
+.cursor/
+.idea/
+
+# ---- Data / Artifacts (IMPORTANT) ----
+*.pkl
+*.pt
+*.pth
+*.ckpt
+*.joblib
+*.parquet
+*.feather
+*.h5
+*.npz
+
+# ---- Outputs ----
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.svg
+*.log
+*.csv
+
+# ---- Common folders in your repo ----
+plots/
+plots_infer/
+backtest/
+
+# ---- If you ever store raw data here ----
+data/
