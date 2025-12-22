@@ -1,6 +1,6 @@
 # Transformer + DRL trading strategy on intraday S&P futures
 
-**Transformer FlOW**
+## **Transformer FlOW**
 
 1. project_feature_eng_model.py --> for feature generation and pickle data set
 
@@ -14,7 +14,7 @@
 
 ---
 
-**LightGBM FLOW**
+## **LightGBM FLOW**
 
 1. project_feature_eng_model.py --> for feature generation and pickle data set
 
@@ -28,7 +28,7 @@
 
 ---
 
-Extra files
+## Extra files
 
 1. project_backtest.py --> is used by DRL, must be in DIR or it wont work
 
@@ -36,6 +36,8 @@ Extra files
 
 
 ---
+## Dependencies
+
 Python version used : Python 3.11.14
 Ubuntu used : 22.04.5 LTS 
 
