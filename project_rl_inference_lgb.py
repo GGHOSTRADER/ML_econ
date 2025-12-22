@@ -6,13 +6,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-DATA_FULL_PATH = "full_df_processed.pkl"
-DATA_COMPRESSED_PATH = "compressed_df.pkl"
-ACTOR_PATH = "actor_sac_daily.pt"
+# ---------- Paths ----------
 
-EQUITY_PLOT_PATH = "rl_equity_curve.png"
-TRADES_CSV_PATH = "rl_trades.csv"
+DATA_PATH = "rl_test_report_lgb.pkl"  # change if needed
+ACTOR_PATH = "actor_sac_daily_REPORT_lgb.pt"
 
+EQUITY_PLOT_PATH = "rl_equity_curve_REPORT_lgb.png"
+TRADES_CSV_PATH = "rl_trades_REPORT_lgb.csv"
+EQUITY_COMPARISON_PLOT_PATH = "rl_vs_buyhold_equity_REPORT_lgb.png"
 
 # ---------- Actor definition (must match training) ----------
 
@@ -53,11 +54,19 @@ class Actor(nn.Module):
 def calculate_realistic_costs(
     position_change: int, current_price: float, bar_volume: float
 ) -> float:
+    """
+    Simple cost model:
+      - Commission per contract
+      - Slippage as sqrt(participation_rate) bps
+    """
     position_change = int(position_change)
     if position_change == 0:
         return 0.0
 
+    # Commission: $2.50 per contract
     commission = 2.50 * abs(position_change)
+
+    # Approximate daily volume from 1-min bar volume
     daily_volume = bar_volume * 390.0
     if daily_volume <= 0:
         return commission
@@ -65,43 +74,30 @@ def calculate_realistic_costs(
     participation_rate = abs(position_change) / daily_volume
     slippage_bps = 2.0 * np.sqrt(participation_rate * 100.0)
     slippage_price = current_price * (slippage_bps / 10000.0)
-    slippage = slippage_price * abs(position_change) * 50.0
+
+    # ES multiplier
+    multiplier = 50.0
+    slippage = slippage_price * abs(position_change) * multiplier
+
     return commission + slippage
 
 
-# ---------- Load data & build features as in RL training ----------
+# ---------- Load data (ENTIRE unseen set) ----------
 
-print(f"Loading {DATA_FULL_PATH} and {DATA_COMPRESSED_PATH} ...")
-df_full = pd.read_pickle(DATA_FULL_PATH)
-df_comp = pd.read_pickle(DATA_COMPRESSED_PATH)
+print(f"Loading {DATA_PATH} ...")
+df_all = pd.read_pickle(DATA_PATH)
 
-if not isinstance(df_full.index, pd.DatetimeIndex):
-    raise TypeError("full_df index must be DatetimeIndex.")
-if not isinstance(df_comp.index, pd.DatetimeIndex):
-    raise TypeError("compressed_df index must be DatetimeIndex.")
+if not isinstance(df_all.index, pd.DatetimeIndex):
+    raise TypeError("DataFrame index must be a DatetimeIndex.")
 
-df_full = df_full.sort_index()
-df_comp = df_comp.sort_index()
+df_all = df_all.sort_index()
 
-# last 3 months, same as training
-last_ts = df_full.index.max()
-cutoff_ts = last_ts - pd.DateOffset(months=3)
-df_full_3m = df_full[df_full.index >= cutoff_ts].copy()
-df_comp_3m = df_comp[df_comp.index >= cutoff_ts].copy()
+if df_all.empty:
+    raise ValueError("DataFrame is empty after loading and sorting.")
 
-cols_needed = ["Open", "Volume"]
-for c in cols_needed:
-    if c not in df_full_3m.columns:
-        raise ValueError(f"{c} not in full_df_3m.")
+print("Data shape (full unseen set):", df_all.shape)
 
-drop_cols = [c for c in cols_needed if c in df_comp_3m.columns]
-if drop_cols:
-    print("Dropping overlapping columns from compressed_df:", drop_cols)
-    df_comp_3m = df_comp_3m.drop(columns=drop_cols)
-
-df_join = df_full_3m[cols_needed].join(df_comp_3m, how="inner")
-if df_join.empty:
-    raise ValueError("Joined df is empty")
+# ---------- Features ----------
 
 feature_cols = [
     "parkinson_vol_5",
@@ -116,13 +112,20 @@ feature_cols = [
     "vwap_distance",
     "minutes_since_open",
     "is_first_last_30min",
-    "pred_vol_15m_fwd",
+    "pred_vol_15m_fwd",  # transformer forecast
 ]
-missing = [c for c in feature_cols if c not in df_join.columns]
-if missing:
-    raise ValueError(f"Missing RL features in df_join: {missing}")
 
-print(f"Eval using {len(feature_cols)} features:", feature_cols)
+cols_needed = ["Open", "Volume"]
+missing_basic = [c for c in cols_needed if c not in df_all.columns]
+if missing_basic:
+    raise ValueError(f"Missing basic columns in df_all: {missing_basic}")
+
+missing_features = [c for c in feature_cols if c not in df_all.columns]
+if missing_features:
+    raise ValueError(f"Missing RL feature columns in df_all: {missing_features}")
+
+print(f"Using {len(feature_cols)} features:")
+print(feature_cols)
 
 # ---------- Load actor ----------
 
@@ -130,7 +133,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Device:", device)
 
 state_dim = len(feature_cols) + 1  # + position
-action_dim = 3  # flat, long, short
+action_dim = 3  # 0: flat, 1: long, 2: short
 
 actor = Actor(state_dim, action_dim).to(device)
 state_dict = torch.load(ACTOR_PATH, map_location=device)
@@ -138,10 +141,9 @@ actor.load_state_dict(state_dict)
 actor.eval()
 print(f"Loaded actor from {ACTOR_PATH}")
 
-# ---------- Run greedy evaluation over all days ----------
+# ---------- Run greedy evaluation over ALL days ----------
 
-df = df_join  # shorthand
-df = df.sort_index()
+df = df_all.sort_index()
 days = np.array(sorted(df.index.normalize().unique()))
 
 position = 0
@@ -149,9 +151,8 @@ cash = 0.0
 equity_curve = []
 equity_time = []
 
-trades = []  # one row per bar: timestamp, day, action, position, pnl_step, cost, cash
-
-multiplier = 50.0
+trades = []  # timestamp, day, action, position, pnl_step, cost, equity
+multiplier = 50.0  # ES
 
 for day in days:
     day_mask = df.index.normalize() == day
@@ -159,7 +160,7 @@ for day in days:
     if len(idxs) < 2:
         continue
 
-    # start day flat
+    # Start each day flat (same assumption as training)
     position = 0
 
     for k in range(len(idxs) - 1):
@@ -169,9 +170,11 @@ for day in days:
         row_now = df.iloc[i]
         row_next = df.iloc[j]
 
+        # Build state = [features..., current_position]
         features = row_now[feature_cols].values.astype(np.float32)
         state = np.concatenate([features, np.array([position], dtype=np.float32)])
 
+        # Actor picks action
         action = actor.sample_action(state, device, greedy=True)
 
         if action == 0:
@@ -190,6 +193,7 @@ for day in days:
         bar_vol = float(row_now["Volume"])
 
         pos_change = desired_pos - position
+
         cost = calculate_realistic_costs(pos_change, price_now, bar_vol)
         pnl_step = desired_pos * (price_next - price_now) * multiplier
 
@@ -212,31 +216,62 @@ for day in days:
             }
         )
 
-# ---------- Save trades + plot equity ----------
+# ---------- Save trades + plot equity + compare vs buy & hold ----------
 
 trades_df = pd.DataFrame(trades)
 trades_df.to_csv(TRADES_CSV_PATH, index=False)
 print(f"Saved trades to {TRADES_CSV_PATH}")
 
-equity_series = pd.Series(equity_curve, index=pd.DatetimeIndex(equity_time))
+if len(equity_curve) > 0:
+    equity_series = pd.Series(equity_curve, index=pd.DatetimeIndex(equity_time))
 
-plt.figure(figsize=(10, 4))
-plt.plot(equity_series.index, equity_series.values)
-plt.axhline(0.0, linestyle="--")
-plt.title("RL Policy Equity Curve (greedy, last 3 months, 1 contract)")
-plt.xlabel("Time")
-plt.ylabel("Cumulative PnL ($)")
-plt.grid(True)
-plt.tight_layout()
-plt.savefig(EQUITY_PLOT_PATH)
-plt.close()
-print(f"Saved equity curve plot to {EQUITY_PLOT_PATH}")
+    # ----- Buy & Hold benchmark (1 contract) -----
+    # Use the same timestamps as the RL equity for a fair comparison
+    bh_prices = df_all["Open"].loc[equity_series.index]
+    start_price = bh_prices.iloc[0]
+    end_price = bh_prices.iloc[-1]
 
-# basic stats
-final_pnl = equity_series.iloc[-1] if len(equity_series) > 0 else 0.0
-max_dd = (
-    (equity_series.cummax() - equity_series).max() if len(equity_series) > 0 else 0.0
-)
+    equity_bh = (bh_prices - start_price) * multiplier  # 1 contract buy & hold
+    buy_hold_pnl = (end_price - start_price) * multiplier
+
+    # ----- Plot RL vs Buy & Hold -----
+    plt.figure(figsize=(10, 4))
+    plt.plot(equity_series.index, equity_series.values, label="RL Policy (1 contract)")
+    plt.plot(equity_bh.index, equity_bh.values, label="Buy & Hold (1 contract)")
+    plt.axhline(0.0, linestyle="--", alpha=0.7)
+    plt.title("RL Policy vs Buy & Hold (full unseen set, 1 contract)")
+    plt.xlabel("Time")
+    plt.ylabel("Cumulative PnL ($)")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(EQUITY_COMPARISON_PLOT_PATH)
+    plt.close()
+    print(f"Saved equity comparison plot to {EQUITY_COMPARISON_PLOT_PATH}")
+
+    # ----- RL-only equity plot (original) -----
+    plt.figure(figsize=(10, 4))
+    plt.plot(equity_series.index, equity_series.values)
+    plt.axhline(0.0, linestyle="--", alpha=0.7)
+    plt.title("RL Policy Equity Curve (greedy, full unseen set, 1 contract)")
+    plt.xlabel("Time")
+    plt.ylabel("Cumulative PnL ($)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(EQUITY_PLOT_PATH)
+    plt.close()
+    print(f"Saved RL-only equity curve plot to {EQUITY_PLOT_PATH}")
+
+    # ----- Stats -----
+    final_pnl = equity_series.iloc[-1]
+    max_dd = (equity_series.cummax() - equity_series).max()
+else:
+    final_pnl = 0.0
+    max_dd = 0.0
+    buy_hold_pnl = 0.0
+    print("No equity points generated (no trades).")
+
 print("\nEval summary:")
-print(f"Final PnL: {final_pnl:,.2f}")
-print(f"Max drawdown: {max_dd:,.2f}")
+print(f"Final PnL (RL): {final_pnl:,.2f}")
+print(f"Max drawdown (RL): {max_dd:,.2f}")
+print(f"Buy & Hold PnL (1 contract): {buy_hold_pnl:,.2f}")

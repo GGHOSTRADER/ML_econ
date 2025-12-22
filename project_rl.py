@@ -27,9 +27,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-DATA_FULL_PATH = "full_df_processed.pkl"
-DATA_COMPRESSED_PATH = "compressed_df.pkl"
-TRAIN_LOG_PATH = "rl_training_log.csv"
+DATA_FULL_PATH = "full_df_processed_splits_REPORT_full_data.pkl"
+# ------------------------------------------------------------------
+# GOT TO CHANGE FULL PATH AND COMPRESSED PATH TO REPORT VERSIONS FOR USING TRANSFORMER OR LIGHTGBM FORECASTS
+DATA_COMPRESSED_PATH = "compressed_df_REPORT_lgb.pkl"  # HERE <----
+TRAIN_LOG_PATH = "rl_training_log_REPORT_lgb.csv"
+# DATA_COMPRESSED_PATH = "compressed_df_REPORT_transformer.pkl"  # HERE <----
+# TRAIN_LOG_PATH = "rl_training_log_REPORT_transformer.csv"
+
+# ------------------------------------------------------------------
 
 
 # =============================================================================
@@ -553,7 +559,12 @@ if __name__ == "__main__":
 
     print(f"\nTraining finished. Log saved to {TRAIN_LOG_PATH}")
 
-    # Optionally save models
-    torch.save(actor.state_dict(), "actor_sac_daily.pt")
-    torch.save(critic.state_dict(), "critic_sac_daily.pt")
-    print("Saved actor_sac_daily.pt and critic_sac_daily.pt")
+    # Optionally save models (LGB)
+    torch.save(actor.state_dict(), "actor_sac_daily_REPORT_lgb.pt")
+    torch.save(critic.state_dict(), "critic_sac_daily_REPORT_lgb.pt")
+    print("Saved actor_sac_daily_REPORT.pt and critic_sac_daily_REPORT_lgb.pt")
+
+    # Optionally save models (TRASFORMER)
+    # torch.save(actor.state_dict(), "actor_sac_daily_REPORT_trans.pt")
+    # torch.save(critic.state_dict(), "critic_sac_daily_REPORT_trans.pt")
+    # print("Saved actor_sac_daily_REPORT.pt and critic_sac_daily_REPORT_trans.pt")

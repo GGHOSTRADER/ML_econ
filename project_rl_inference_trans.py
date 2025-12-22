@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 
 # ---------- Paths ----------
 
-DATA_PATH = "transformer_rv15_predictions_new_data.pkl"  # change if needed
-ACTOR_PATH = "actor_sac_daily.pt"
+DATA_PATH = "rl_test_report_trans.pkl"  # change if needed
+ACTOR_PATH = "actor_sac_daily_REPORT_trans.pt"
 
-EQUITY_PLOT_PATH = "rl_equity_curve.png"
-TRADES_CSV_PATH = "rl_trades.csv"
-EQUITY_COMPARISON_PLOT_PATH = "rl_vs_buyhold_equity.png"
+EQUITY_PLOT_PATH = "rl_equity_curve_REPORT_trans.png"
+TRADES_CSV_PATH = "rl_trades_REPORT_trans.csv"
+EQUITY_COMPARISON_PLOT_PATH = "rl_vs_buyhold_equity_REPORT_trans.png"
 
 # ---------- Actor definition (must match training) ----------
 
