@@ -38,11 +38,11 @@
 ---
 ## Dependencies
 
-Python version used : Python 3.11.14
+1) Python version used : Python 3.11.14
 
-Ubuntu used : 22.04.5 LTS 
+2) Ubuntu used : 22.04.5 LTS 
 
-Python libraries Used:
+3) Python libraries Used:
 
 Package      ----->         Version
  
