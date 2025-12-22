@@ -44,8 +44,8 @@ Ubuntu used : 22.04.5 LTS
 
 Python libraries Used:
 
-Package                   Version
-------------------------- -----------
+Package      ----->         Version
+ 
 
 aiohappyeyeballs          2.6.1
 
