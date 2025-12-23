@@ -1,5 +1,5 @@
 # Volatility Forecasting with Transformers for Deep RL Intraday Trading in ES Futures
-by Guillermo Alfonso Medrano Sanchez \ 高文昊
+By Guillermo Alfonso Medrano Sanchez \ 高文昊
 
 Machine Learning and Econometrics
 
