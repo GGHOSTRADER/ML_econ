@@ -1,4 +1,10 @@
-# Transformer + DRL trading strategy on intraday S&P futures
+# Volatility Forecasting with Transformers for Deep RL Intraday Trading in ES Futures
+Guillermo Alfonso Medrano Sanchez \ 高文昊
+Machine Learning and Econometrics
+Instructor: Dr. 冼芻蕘
+National Tsing Hua University  
+December 2025
+
 
 ## **Transformer FlOW**
 
